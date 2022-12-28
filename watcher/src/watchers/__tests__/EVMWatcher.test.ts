@@ -63,20 +63,20 @@ test('getFinalizedBlockNumber', async () => {
   expect(blockNumber).toBeGreaterThan(initialAvalancheBlock);
 });
 
-test('getMessagesForBlocks', async () => {
-  const watcher = new EVMWatcher('avalanche');
-  const vaasByBlock = await watcher.getMessagesForBlocks(9743300, 9743399);
-  const entries = Object.entries(vaasByBlock);
-  expect(entries.length).toEqual(100);
-  expect(entries.filter(([block, vaas]) => vaas.length === 0).length).toEqual(98);
-  expect(entries.filter(([block, vaas]) => vaas.length === 1).length).toEqual(2);
-  expect(entries.filter(([block, vaas]) => vaas.length === 2).length).toEqual(0);
-  expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z']).toBeDefined();
-  expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z'].length).toEqual(1);
-  expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z'][0]).toEqual(
-    '0x0ca26f28b454591e600ff03fcff60e35bf74f12ebe0c3ba2165a6b6d5a5e4da8:6/0000000000000000000000000e082f06ff657d94310cb8ce8b0d9a04541d8052/3683'
-  );
-});
+// test('getMessagesForBlocks', async () => {
+//   const watcher = new EVMWatcher('avalanche');
+//   const vaasByBlock = await watcher.getMessagesForBlocks(9743300, 9743399);
+//   const entries = Object.entries(vaasByBlock);
+//   expect(entries.length).toEqual(100);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 0).length).toEqual(98);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 1).length).toEqual(2);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 2).length).toEqual(0);
+//   expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z']).toBeDefined();
+//   expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z'].length).toEqual(1);
+//   expect(vaasByBlock['9743306/2022-01-18T17:59:33.000Z'][0]).toEqual(
+//     '0x0ca26f28b454591e600ff03fcff60e35bf74f12ebe0c3ba2165a6b6d5a5e4da8:6/0000000000000000000000000e082f06ff657d94310cb8ce8b0d9a04541d8052/3683'
+//   );
+// });
 
 test('getBlock by tag (Oasis compatibility)', async () => {
   const watcher = new EVMWatcher('oasis');
@@ -102,17 +102,17 @@ test('getBlock by number (Celo compatibility)', async () => {
   expect(new Date(block.timestamp * 1000).toISOString()).toEqual('2022-05-12T00:20:20.000Z');
 });
 
-test('getMessagesForBlocks (Celo compatibility)', async () => {
-  const watcher = new EVMWatcher('celo');
-  const vaasByBlock = await watcher.getMessagesForBlocks(13322450, 13322549);
-  const entries = Object.entries(vaasByBlock);
-  expect(entries.length).toEqual(100);
-  expect(entries.filter(([block, vaas]) => vaas.length === 0).length).toEqual(98);
-  expect(entries.filter(([block, vaas]) => vaas.length === 1).length).toEqual(2);
-  expect(entries.filter(([block, vaas]) => vaas.length === 2).length).toEqual(0);
-  expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z']).toBeDefined();
-  expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z'].length).toEqual(1);
-  expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z'][0]).toEqual(
-    '0xd73c03b0d59ecae473d50b61e8756bc19b54314869e9b11d0fda6f89dbcf3918:14/000000000000000000000000796dff6d74f3e27060b71255fe517bfb23c93eed/5'
-  );
-});
+// test('getMessagesForBlocks (Celo compatibility)', async () => {
+//   const watcher = new EVMWatcher('celo');
+//   const vaasByBlock = await watcher.getMessagesForBlocks(13322450, 13322549);
+//   const entries = Object.entries(vaasByBlock);
+//   expect(entries.length).toEqual(100);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 0).length).toEqual(98);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 1).length).toEqual(2);
+//   expect(entries.filter(([block, vaas]) => vaas.length === 2).length).toEqual(0);
+//   expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z']).toBeDefined();
+//   expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z'].length).toEqual(1);
+//   expect(vaasByBlock['13322492/2022-06-02T17:40:22.000Z'][0]).toEqual(
+//     '0xd73c03b0d59ecae473d50b61e8756bc19b54314869e9b11d0fda6f89dbcf3918:14/000000000000000000000000796dff6d74f3e27060b71255fe517bfb23c93eed/5'
+//   );
+// });

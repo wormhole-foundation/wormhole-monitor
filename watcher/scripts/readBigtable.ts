@@ -1,8 +1,8 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
 import { CHAINS } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
 import { padUint16 } from '@wormhole-foundation/wormhole-monitor-common';
+import * as dotenv from 'dotenv';
 import { BigtableDatabase } from '../src/databases/BigtableDatabase';
+dotenv.config();
 
 (async () => {
   const bt = new BigtableDatabase();
@@ -22,6 +22,8 @@ import { BigtableDatabase } from '../src/databases/BigtableDatabase';
       // for (const msg of observedMessages[0]) {
       //   console.log(chainName.padEnd(12), msg.id);
       // }
+      // TODO: key is not necessarily a trustworthy source of truth for some of these fields
+      // store requisite info in bigtable row directly
       console.log(chainName.padEnd(12), observedMessages[0].length.toString().padStart(6));
       if (observedMessages[0][0]) {
         console.log('   id           ', observedMessages[0][0]?.id);

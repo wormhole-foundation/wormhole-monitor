@@ -37,6 +37,7 @@ export const RPCS_BY_CHAIN: { [key in ChainName]?: string } = {
 export const POLYGON_ROOT_CHAIN_RPC = 'https://rpc.ankr.com/eth';
 export const POLYGON_ROOT_CHAIN_ADDRESS = '0x86E4Dc95c7FBdBf52e33D563BbDB00823894C287';
 
+export const MESSAGE_KEY_SEPARATOR = '/';
 export const DB_SOURCE = process.env.DB_SOURCE || 'local';
 export const JSON_DB_FILE = process.env.JSON_DB_FILE || '../server/db.json';
 export const DB_LAST_BLOCK_FILE =

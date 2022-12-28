@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@certusone/wormhole-sdk": "^0.9.6",
+    "@wormhole-foundation/wormhole-monitor-common": "^0.0.1",
     "express": "^4.18.2",
     "firebase-admin": "^11.4.0"
   },

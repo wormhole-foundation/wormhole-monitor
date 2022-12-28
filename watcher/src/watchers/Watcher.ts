@@ -1,8 +1,7 @@
 import { ChainName } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
-import { sleep } from '@wormhole-foundation/wormhole-monitor-common';
+import { sleep, WormholeMessage } from '@wormhole-foundation/wormhole-monitor-common';
 import { TIMEOUT } from '../consts';
-import { VaasByBlock } from '../databases/types';
-import { getLastBlockByChain, storeVaasByBlock } from '../databases/utils';
+import { getLastBlockNumberByChain, storeWormholeMessages } from '../databases/utils';
 import { getLogger, WormholeLogger } from '../utils/logger';
 
 export class Watcher {
@@ -19,13 +18,13 @@ export class Watcher {
     throw new Error('Not Implemented');
   }
 
-  async getMessagesForBlocks(fromBlock: number, toBlock: number): Promise<VaasByBlock> {
+  async getMessagesForBlocks(fromBlock: number, toBlock: number): Promise<WormholeMessage[]> {
     throw new Error('Not Implemented');
   }
 
   async watch(): Promise<void> {
     let toBlock: number | null = null;
-    let fromBlock: number | null = await getLastBlockByChain(this.chain);
+    let fromBlock: number | null = await getLastBlockNumberByChain(this.chain);
     let retry = 0;
     while (true) {
       try {
@@ -34,7 +33,7 @@ export class Watcher {
           toBlock = Math.min(fromBlock + this.maximumBatchSize - 1, toBlock);
           this.logger.info(`fetching messages from ${fromBlock} to ${toBlock}`);
           const vaasByBlock = await this.getMessagesForBlocks(fromBlock, toBlock);
-          await storeVaasByBlock(this.chain, vaasByBlock);
+          await storeWormholeMessages(this.chain, vaasByBlock);
           fromBlock = toBlock + 1;
         }
         try {

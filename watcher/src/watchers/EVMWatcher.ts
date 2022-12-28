@@ -1,11 +1,10 @@
 import { Implementation__factory } from '@certusone/wormhole-sdk/lib/cjs/ethers-contracts/factories/Implementation__factory';
 import { CONTRACTS, EVMChainName } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
 import { Log } from '@ethersproject/abstract-provider';
+import { WormholeMessage } from '@wormhole-foundation/wormhole-monitor-common';
 import axios, { AxiosRequestConfig } from 'axios';
 import { BigNumber } from 'ethers';
 import { RPCS_BY_CHAIN } from '../consts';
-import { VaasByBlock } from '../databases/types';
-import { makeBlockKey, makeVaaKey } from '../databases/utils';
 import { Watcher } from './Watcher';
 
 // This is the hash for topic[0] of the core contract event LogMessagePublished
@@ -160,7 +159,7 @@ export class EVMWatcher extends Watcher {
     const block = await this.getBlock(this.finalizedBlockTag);
     return block.number;
   }
-  async getMessagesForBlocks(fromBlock: number, toBlock: number): Promise<VaasByBlock> {
+  async getMessagesForBlocks(fromBlock: number, toBlock: number): Promise<WormholeMessage[]> {
     const address = CONTRACTS.MAINNET[this.chain].core;
     if (!address) {
       throw new Error(`Core contract not defined for ${this.chain}`);
@@ -168,25 +167,31 @@ export class EVMWatcher extends Watcher {
     const logs = await this.getLogs(fromBlock, toBlock, address, [LOG_MESSAGE_PUBLISHED_TOPIC]);
     const timestampsByBlock: { [block: number]: string } = {};
     // fetch timestamps for each block
-    const vaasByBlock: VaasByBlock = {};
     this.logger.info(`fetching info for blocks ${fromBlock} to ${toBlock}`);
     const blocks = await this.getBlocks(fromBlock, toBlock);
     for (const block of blocks) {
       const timestamp = new Date(block.timestamp * 1000).toISOString();
       timestampsByBlock[block.number] = timestamp;
-      vaasByBlock[makeBlockKey(block.number.toString(), timestamp)] = [];
     }
+
     this.logger.info(`processing ${logs.length} logs`);
+    const messages: WormholeMessage[] = [];
     for (const log of logs) {
       const blockNumber = log.blockNumber;
       const emitter = log.topics[1].slice(2);
       const {
         args: { sequence },
       } = wormholeInterface.parseLog(log);
-      const vaaKey = makeVaaKey(log.transactionHash, this.chain, emitter, sequence.toString());
-      const blockKey = makeBlockKey(blockNumber.toString(), timestampsByBlock[blockNumber]);
-      vaasByBlock[blockKey] = [...(vaasByBlock[blockKey] || []), vaaKey];
+      messages.push({
+        key: [this.chain, blockNumber.toString(), log.transactionIndex].join('/'),
+        blockNumber: blockNumber.toString(),
+        timestamp: timestampsByBlock[blockNumber],
+        transactionHash: log.transactionHash,
+        chain: this.chain,
+        emitter,
+        sequence: sequence.toString(),
+      });
     }
-    return vaasByBlock;
+    return messages;
   }
 }

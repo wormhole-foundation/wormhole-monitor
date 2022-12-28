@@ -1,19 +1,21 @@
-import { ChainName, coalesceChainId } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
+import { ChainId, ChainName, coalesceChainId } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
+import { MessagesByChain, WormholeMessage } from '@wormhole-foundation/wormhole-monitor-common';
 import { readFileSync, writeFileSync } from 'fs';
 import { DB_LAST_BLOCK_FILE, JSON_DB_FILE } from '../consts';
 import { Database } from './Database';
-import { DB, LastBlockByChain, VaasByBlock } from './types';
+import { compareWormholeMessages } from './utils';
 
 const ENCODING = 'utf8';
 export class JsonDatabase extends Database {
-  db: DB;
-  lastBlockByChain: LastBlockByChain;
+  db: MessagesByChain;
+  lastMessageByChain: { [chain in ChainId]?: WormholeMessage };
   dbFile: string;
-  dbLastBlockFile: string;
+  dbLastMessageFile: string;
+
   constructor() {
     super();
     this.db = {};
-    this.lastBlockByChain = {};
+    this.lastMessageByChain = {};
     if (!process.env.JSON_DB_FILE) {
       this.logger.info(`no db file set, using default path=${JSON_DB_FILE}`);
     }
@@ -21,40 +23,40 @@ export class JsonDatabase extends Database {
       this.logger.info(`no db file set, using default path=${DB_LAST_BLOCK_FILE}`);
     }
     this.dbFile = JSON_DB_FILE;
-    this.dbLastBlockFile = DB_LAST_BLOCK_FILE;
+    this.dbLastMessageFile = DB_LAST_BLOCK_FILE;
 
     try {
       const rawDb = readFileSync(this.dbFile, ENCODING);
       this.db = JSON.parse(rawDb);
-      const rawLast = readFileSync(this.dbLastBlockFile, ENCODING);
-      this.lastBlockByChain = JSON.parse(rawLast);
+      const rawLast = readFileSync(this.dbLastMessageFile, ENCODING);
+      this.lastMessageByChain = JSON.parse(rawLast);
     } catch (e) {
       this.logger.warn('Failed to load DB, initiating a fresh one.');
       this.db = {};
     }
   }
 
-  async getLastBlockByChain(chain: ChainName): Promise<string | null> {
+  async getLastMessageByChain(chain: ChainName): Promise<WormholeMessage | null> {
     const chainId = coalesceChainId(chain);
-    const blockInfo = this.lastBlockByChain[chainId];
-    if (blockInfo) {
-      const tokens = blockInfo.split('/');
-      return chain === 'aptos' ? tokens.at(-1)! : tokens[0];
-    }
-    return null;
+    return this.lastMessageByChain[chainId] ?? null;
   }
-  async storeVaasByBlock(chain: ChainName, vaasByBlock: VaasByBlock): Promise<void> {
+
+  async storeWormholeMessages(chain: ChainName, messages: WormholeMessage[]): Promise<void> {
+    if (messages.length === 0) return;
+
     const chainId = coalesceChainId(chain);
-    const filteredVaasByBlock = Database.filterEmptyBlocks(vaasByBlock);
-    if (Object.keys(filteredVaasByBlock).length) {
-      this.db[chainId] = { ...(this.db[chainId] || {}), ...filteredVaasByBlock };
-      writeFileSync(this.dbFile, JSON.stringify(this.db), ENCODING);
+    const sortedMessages = messages.sort(compareWormholeMessages);
+    for (const message of sortedMessages) {
+      this.db[chainId] = this.db[chainId] ?? {};
+      this.db[chainId]![message.key] = message;
     }
-    // this will always overwrite the "last" block, so take caution if manually backfilling gaps
-    const blockInfos = Object.keys(vaasByBlock);
-    if (blockInfos.length) {
-      this.lastBlockByChain[chainId] = blockInfos[blockInfos.length - 1];
-      writeFileSync(this.dbLastBlockFile, JSON.stringify(this.lastBlockByChain), ENCODING);
+    writeFileSync(this.dbFile, JSON.stringify(this.db), ENCODING);
+
+    const lastNewMessage = sortedMessages.at(-1)!;
+    const lastStoredMessage = await this.getLastMessageByChain(chain);
+    if (lastStoredMessage && compareWormholeMessages(lastNewMessage, lastStoredMessage) > 0) {
+      this.lastMessageByChain[chainId] = lastNewMessage;
+      writeFileSync(this.dbLastMessageFile, JSON.stringify(this.lastMessageByChain), ENCODING);
     }
   }
 }

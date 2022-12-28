@@ -1,8 +1,7 @@
 import { CONTRACTS } from '@certusone/wormhole-sdk/lib/cjs/utils';
+import { WormholeMessage } from '@wormhole-foundation/wormhole-monitor-common';
 import { AptosClient, Types } from 'aptos';
 import { RPCS_BY_CHAIN } from '../consts';
-import { VaasByBlock } from '../databases/types';
-import { makeVaaKey } from '../databases/utils';
 import { Watcher } from './Watcher';
 
 const APTOS_CORE_BRIDGE_ADDRESS = CONTRACTS.MAINNET.aptos.core;
@@ -35,33 +34,35 @@ export class AptosWatcher extends Watcher {
     );
   }
 
-  async getMessagesForBlocks(fromSequence: number, toSequence: number): Promise<VaasByBlock> {
+  async getMessagesForBlocks(fromSequence: number, toSequence: number): Promise<WormholeMessage[]> {
     const limit = toSequence - fromSequence + 1;
-    const events: AptosEvent[] = (await this.client.getEventsByEventHandle(
+    const events: WormholeMessageEvent[] = (await this.client.getEventsByEventHandle(
       APTOS_CORE_BRIDGE_ADDRESS,
       APTOS_EVENT_HANDLE,
       APTOS_FIELD_NAME,
       { start: fromSequence, limit }
-    )) as AptosEvent[];
-    const vaasByBlock: VaasByBlock = {};
-    await Promise.all(
+    )) as WormholeMessageEvent[];
+    return Promise.all(
       events.map(async ({ data, sequence_number, version }) => {
         const [block, transaction] = await Promise.all([
           this.client.getBlockByVersion(Number(version)),
           this.client.getTransactionByVersion(Number(version)),
         ]);
-        const timestamp = new Date(Number(block.block_timestamp)).toISOString();
-        const blockKey = [block.block_height, timestamp, sequence_number].join('/'); // use custom block key for now so we can include sequence number
-        const emitter = data.sender.padStart(64, '0');
-        const vaaKey = makeVaaKey(transaction.hash, this.chain, emitter, data.sequence);
-        vaasByBlock[blockKey] = [...(vaasByBlock[blockKey] ?? []), vaaKey];
+        return {
+          key: [this.chain, sequence_number, version].join('/'),
+          blockNumber: block.block_height,
+          timestamp: new Date(Number(block.block_timestamp)).toISOString(),
+          transactionHash: transaction.hash,
+          chain: this.chain,
+          emitter: data.sender.padStart(64, '0'),
+          sequence: data.sequence,
+        };
       })
     );
-    return vaasByBlock;
   }
 }
 
-type AptosEvent = Omit<Types.Event, 'data'> & {
+type WormholeMessageEvent = Omit<Types.Event, 'data'> & {
   version: string;
   data: {
     consistency_level: number;

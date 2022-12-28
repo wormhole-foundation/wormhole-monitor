@@ -1,11 +1,12 @@
 import { ChainName, coalesceChainId } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
-import { assertEnvironmentVariable } from '../utils/environment';
-import { Database } from './Database';
 import { Bigtable } from '@google-cloud/bigtable';
-import { padUint16, padUint64 } from '@wormhole-foundation/wormhole-monitor-common';
+import { WormholeMessage } from '@wormhole-foundation/wormhole-monitor-common';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { VaasByBlock } from './types';
+import { assertEnvironmentVariable } from '../utils/environment';
+import { getLogger } from '../utils/logger';
+import { Database } from './Database';
+import { compareWormholeMessages, padWormholeMessageKey } from './utils';
 
 export class BigtableDatabase extends Database {
   tableId: string;
@@ -13,6 +14,7 @@ export class BigtableDatabase extends Database {
   bigtable: Bigtable;
   firestoreDb: FirebaseFirestore.Firestore;
   latestCollectionName: string;
+
   constructor() {
     super();
     this.tableId = assertEnvironmentVariable('BIGTABLE_TABLE_ID');
@@ -30,42 +32,42 @@ export class BigtableDatabase extends Database {
     }
   }
 
-  async getLastBlockByChain(chain: ChainName): Promise<string | null> {
+  async getLastMessageByChain(chain: ChainName): Promise<WormholeMessage | null> {
     const chainId = coalesceChainId(chain);
-    const lastObservedBlock = this.firestoreDb
+    const lastObservedMessage = this.firestoreDb
       .collection(this.latestCollectionName)
       .doc(chainId.toString());
-    const lastObservedBlockByChain = await lastObservedBlock.get();
-    const blockKeyData = lastObservedBlockByChain.data();
-    const lastBlockKey = blockKeyData?.lastBlockKey;
-    if (lastBlockKey) {
-      this.logger.info(`for chain=${chain}, found most recent firestore block=${lastBlockKey}`);
-      const tokens = lastBlockKey.split('/');
-      return chain === 'aptos' ? tokens.at(-1) : tokens[0];
+    const lastObservedMessageByChain = await lastObservedMessage.get();
+    const messageData = lastObservedMessageByChain.data();
+    const lastMessageJson = messageData?.lastBlockKey;
+    if (lastMessageJson) {
+      // TODO: ensure we've parsed a valid message
+      const lastMessage: WormholeMessage = JSON.parse(lastMessageJson);
+      getLogger(chain, this.logger).info(`found most recent firestore message=${lastMessage.key}`);
+      return lastMessage;
     }
+
     return null;
   }
 
-  async storeLatestBlock(chain: ChainName, lastBlockKey: string): Promise<void> {
-    if (this.firestoreDb === undefined) {
-      this.logger.error('no firestore db set');
-      return;
-    }
+  async storeLatestMessageByChain(chain: ChainName, message: WormholeMessage): Promise<void> {
     const chainId = coalesceChainId(chain);
-    this.logger.info(`storing last block=${lastBlockKey} for chain=${chainId}`);
+    getLogger(chain, this.logger).info(`storing last message=${message}`);
     const lastObservedBlock = this.firestoreDb
       .collection(this.latestCollectionName)
       .doc(`${chainId.toString()}`);
-    await lastObservedBlock.set({ lastBlockKey });
+    await lastObservedBlock.set({ lastBlockKey: JSON.stringify(message) });
   }
 
-  async storeVaasByBlock(chain: ChainName, vaasByBlock: VaasByBlock): Promise<void> {
+  async storeWormholeMessages(chain: ChainName, messages: WormholeMessage[]): Promise<void> {
     if (this.bigtable === undefined) {
       this.logger.warn('no bigtable instance set');
       return;
     }
-    const chainId = coalesceChainId(chain);
-    const filteredBlocks = BigtableDatabase.filterEmptyBlocks(vaasByBlock);
+
+    if (messages.length === 0) return;
+
+    const sortedMessages = messages.sort(compareWormholeMessages);
     const instance = this.bigtable.instance(this.instanceId);
     const table = instance.table(this.tableId);
     const rowsToInsert: {
@@ -80,44 +82,37 @@ export class BigtableDatabase extends Database {
         };
       };
     }[] = [];
-    Object.keys(filteredBlocks).forEach((blockKey) => {
-      const [block, timestamp] = blockKey.split('/');
-      filteredBlocks[blockKey].forEach((msgKey) => {
-        const [txHash, vaaKey] = msgKey.split(':');
-        const [, emitter, seq] = vaaKey.split('/');
-        rowsToInsert.push({
-          key: `${padUint16(chainId.toString())}/${padUint64(block)}/${emitter}/${padUint64(seq)}`,
-          data: {
-            // column family
-            info: {
-              // columns
-              timestamp: {
-                value: timestamp,
-                // write 0 timestamp to only keep 1 cell each
-                // https://cloud.google.com/bigtable/docs/gc-latest-value
-                timestamp: '0',
-              },
-              txHash: {
-                value: txHash,
-                timestamp: '0',
-              },
-              hasSignedVaa: {
-                value: 0,
-                timestamp: '0',
-              },
+    for (const message of sortedMessages) {
+      rowsToInsert.push({
+        key: padWormholeMessageKey(message.key),
+        data: {
+          info: {
+            timestamp: {
+              value: message.timestamp,
+              // write 0 timestamp to only keep 1 cell each
+              // https://cloud.google.com/bigtable/docs/gc-latest-value
+              timestamp: '0',
+            },
+            txHash: {
+              value: message.transactionHash,
+              timestamp: '0',
+            },
+            hasSignedVaa: {
+              value: 0,
+              timestamp: '0',
             },
           },
-        });
+        },
       });
-    });
+    }
     await table.insert(rowsToInsert);
 
-    // store latest vaasByBlock to firestore
-    const blockInfos = Object.keys(vaasByBlock);
-    if (blockInfos.length) {
-      const lastBlockKey = blockInfos[blockInfos.length - 1];
-      this.logger.info(`for chain=${chain}, storing last bigtable block=${lastBlockKey}`);
-      await this.storeLatestBlock(chain, lastBlockKey);
+    // store latest messages to firestore
+    const lastNewMessage = sortedMessages.at(-1)!;
+    const lastStoredMessage = await this.getLastMessageByChain(chain);
+    if (lastStoredMessage && compareWormholeMessages(lastNewMessage, lastStoredMessage) > 0) {
+      this.logger.info(`for chain=${chain}, storing last bigtable message=${lastNewMessage.key}`);
+      await this.storeLatestMessageByChain(chain, lastNewMessage);
     }
   }
 }
