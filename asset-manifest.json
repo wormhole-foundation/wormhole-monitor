@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/wormhole-monitor/static/js/main.f24eb872.js",
+    "main.js": "/wormhole-monitor/static/js/main.cd595be9.js",
     "index.html": "/wormhole-monitor/index.html",
-    "main.f24eb872.js.map": "/wormhole-monitor/static/js/main.f24eb872.js.map"
+    "main.cd595be9.js.map": "/wormhole-monitor/static/js/main.cd595be9.js.map"
   },
   "entrypoints": [
-    "static/js/main.f24eb872.js"
+    "static/js/main.cd595be9.js"
   ]
 }
