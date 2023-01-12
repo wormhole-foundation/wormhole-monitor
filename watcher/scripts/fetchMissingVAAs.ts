@@ -14,6 +14,8 @@ import { AXIOS_CONFIG_JSON } from '../src/consts';
 // TODO: At some point this all should be automated in the watcher to self-heal the db
 
 const foundVaas: { [id: string]: string } = {};
+const foundVaas2: string[] = []; //format for easy c&p into bigtable-backfill-guardian-rpc
+
 const missingVaas: { [id: string]: string | undefined } = {};
 
 const GUARDIAN_RPCS = [
@@ -58,6 +60,7 @@ const GUARDIAN_RPCS = [
       if (vaaBytes) {
         found++;
         foundVaas[id] = Buffer.from(vaaBytes, 'base64').toString('hex');
+        foundVaas2.push(`${chain}/${emitter}/${sequence.toString()}`);
       } else {
         missingVaas[id] = observedMessage.data.info.txHash?.[0].value;
       }
@@ -66,6 +69,7 @@ const GUARDIAN_RPCS = [
     console.log('Total:', total);
     console.log('Found:', found);
     console.log('Missing:', total - found);
+    writeFileSync('./found2.json', JSON.stringify(foundVaas2, undefined, 2));
     writeFileSync('./found.json', JSON.stringify(foundVaas, undefined, 2));
     writeFileSync('./missing.json', JSON.stringify(missingVaas, undefined, 2));
   } catch (e) {
