@@ -11,10 +11,12 @@
     "test": "jest",
     "backfill": "ts-node scripts/backfill.ts",
     "backfill-near": "ts-node scripts/backfillNear.ts",
+    "dump-vaas": "ts-node scripts/dumpVAAs.ts",
     "locate-message-gaps": "ts-node scripts/locateMessageGaps.ts",
     "fetch-missing-vaas": "ts-node scripts/fetchMissingVAAs.ts",
     "read-bigtable": "ts-node scripts/readBigtable.ts",
-    "read-firestore": "ts-node scripts/readFirestore.ts"
+    "read-firestore": "ts-node scripts/readFirestore.ts",
+    "update-rows": "ts-node scripts/updateRows.ts"
   },
   "dependencies": {
     "@celo-tools/celo-ethers-wrapper": "^0.3.0",
