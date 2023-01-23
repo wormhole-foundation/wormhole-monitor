@@ -7,7 +7,10 @@ import axios from 'axios';
 import { VaasByBlock } from '../src/databases/types';
 import { writeFileSync } from 'fs';
 import { RPCS_BY_CHAIN } from '../src/consts';
-
+import { BigtableDatabase } from '../src/databases/BigtableDatabase';
+import { ChainId, coalesceChainName } from '@certusone/wormhole-sdk/lib/cjs/utils/consts';
+import { chunkArray, sleep } from '@wormhole-foundation/wormhole-monitor-common';
+import { JsonDatabase } from '../src/databases/JsonDatabase';
 // Ensure `DB_SOURCE` and Bigtable environment variables are set to backfill Bigtable database.
 // Otherwise, the script will backfill the local JSON database.
 //   terra: 'https://columbus-lcd.terra.dev',
@@ -105,8 +108,7 @@ export async function getTerraTransactions(startId: string): Promise<TxResponse[
 
   return transactions;
 }
-
-(async () => {
+async function generateBackfillTransactions() {
   try {
     let ix = 0;
     const db = initDb();
@@ -118,7 +120,16 @@ export async function getTerraTransactions(startId: string): Promise<TxResponse[
     if (startId !== '') {
       console.log('setting start Id = ', startId);
     }
+    const remoteDb = new BigtableDatabase();
+    const latestBlocks = await remoteDb.getLastBlockByChain('terra');
+    const lastObservedBlock = latestBlocks ? Number(latestBlocks.split('/')[0]) : 0;
+    console.log('found last recorded block=', lastObservedBlock);
+    let currentBlock = null;
     while (true) {
+      if (currentBlock && currentBlock < lastObservedBlock) {
+        // reached last recorded block
+        break;
+      }
       const transactions: TxResponse[] = await getTerraTransactions(startId);
       log.succeed(
         `Fetched ${ix} * ${transactions.length} transactions from Terra Explorer at ${new Date()}`
@@ -129,6 +140,7 @@ export async function getTerraTransactions(startId: string): Promise<TxResponse[
         if (tx && tx?.raw_log) {
           const hash = tx.txhash;
           const blockKey = makeBlockKey(tx.height.toString(), new Date(tx.timestamp).toISOString());
+          currentBlock = Number(tx.height);
           const logs = JSON.parse(tx.raw_log);
           for (const log of logs) {
             const events = log?.events;
@@ -190,4 +202,81 @@ export async function getTerraTransactions(startId: string): Promise<TxResponse[
   } catch (e) {
     console.log(e);
   }
+
+  return;
+}
+
+// This script backfills the bigtable db from a json db
+
+async function backfillTerra() {
+  const localDb = new JsonDatabase();
+  const remoteDb = new BigtableDatabase();
+  const dbEntries = Object.entries(localDb.db);
+
+  for (const [chain, vaasByBlock] of dbEntries) {
+    console.log('backfilling', chain);
+    const chunkedKeys = chunkArray(Object.keys(vaasByBlock), 1000);
+    let chunk = 1;
+    for (const chunkeyKeys of chunkedKeys) {
+      console.log('chunk', chunk++, 'of', chunkedKeys.length);
+      const chunkedVaasByBlock = chunkeyKeys.reduce<VaasByBlock>((obj, curr) => {
+        obj[curr] = vaasByBlock[curr];
+        return obj;
+      }, {});
+      await remoteDb.storeVaasByBlock(
+        coalesceChainName(Number(chain) as ChainId),
+        chunkedVaasByBlock
+      );
+      await sleep(500);
+    }
+  }
+  for (const [chain, vaasByBlock] of dbEntries) {
+    if (chain === '3') {
+      const blockKey = Object.keys(vaasByBlock)[0];
+      console.log(blockKey);
+      await remoteDb.storeLatestBlock(coalesceChainName(Number(chain) as ChainId), blockKey);
+    }
+  }
+
+  return;
+}
+
+(async () => {
+  try {
+    const backfillPart1 = await generateBackfillTransactions();
+    console.log('successfully generated terra backfills');
+  } catch (e) {
+    console.log('could not backfill');
+  }
+  try {
+    const backfillPart2 = await backfillTerra();
+    console.log('successfully updated terra backfills ');
+  } catch (e) {
+    console.log('could not backfill2');
+  }
 })();
+
+/* 
+I made this change to storeVaasByBlock function in the JsonDatabase class to avoid overwritting an existing blockKey 
+if multiple transactions in the same block are split across diff pages in the explorer
+
+async storeVaasByBlock(chain: ChainName, vaasByBlock: VaasByBlock): Promise<void> {
+    const chainId = coalesceChainId(chain);
+    const filteredVaasByBlock = Database.filterEmptyBlocks(vaasByBlock);
+    let consolidatedVaaBlocks: VaasByBlock = {};
+    for (const blockKey of Object.keys(filteredVaasByBlock)) {
+      consolidatedVaaBlocks[blockKey] = [
+        ...(this.db[chainId]?.[blockKey] || []),
+        ...filteredVaasByBlock[blockKey],
+      ];
+    }
+    this.db[chainId] = { ...(this.db[chainId] || {}), ...consolidatedVaaBlocks };
+    writeFileSync(this.dbFile, JSON.stringify(this.db), ENCODING);
+    // this will always overwrite the "last" block, so take caution if manually backfilling gaps
+    const blockInfos = Object.keys(vaasByBlock);
+    if (blockInfos.length) {
+      this.lastBlockByChain[chainId] = blockInfos.sort()[blockInfos.length - 1];
+      writeFileSync(this.dbLastBlockFile, JSON.stringify(this.lastBlockByChain), ENCODING);
+    }
+  }
+*/
