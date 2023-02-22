@@ -12,10 +12,12 @@
     "backfill": "ts-node scripts/backfill.ts",
     "backfill-arbitrum": "ts-node scripts/backfillArbitrum.ts",
     "backfill-near": "ts-node scripts/backfillNear.ts",
+    "delete-messages-by-chain": "ts-node scripts/deleteMessagesByChain.ts",
     "locate-message-gaps": "ts-node scripts/locateMessageGaps.ts",
     "fetch-missing-vaas": "ts-node scripts/fetchMissingVAAs.ts",
     "read-bigtable": "ts-node scripts/readBigtable.ts",
-    "read-firestore": "ts-node scripts/readFirestore.ts"
+    "read-firestore": "ts-node scripts/readFirestore.ts",
+    "reconstruct-vaa": "ts-node scripts/reconstructVAA.ts"
   },
   "dependencies": {
     "@celo-tools/celo-ethers-wrapper": "^0.3.0",
