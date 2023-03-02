@@ -5,6 +5,7 @@ import { ArbitrumWatcher } from './ArbitrumWatcher';
 import { BSCWatcher } from './BSCWatcher';
 import { CosmwasmWatcher } from './CosmwasmWatcher';
 import { EVMWatcher } from './EVMWatcher';
+import { InjectiveWatcher } from './InjectiveWatcher';
 import { MoonbeamWatcher } from './MoonbeamWatcher';
 import { NearWatcher } from './NearWatcher';
 import { OptimismWatcher } from './OptimismWatcher';
@@ -41,12 +42,9 @@ export function makeFinalizedWatcher(chainName: ChainName): Watcher {
     return new AptosWatcher();
   } else if (chainName === 'near') {
     return new NearWatcher();
-  } else if (
-    chainName === 'terra' ||
-    chainName === 'terra2' ||
-    chainName === 'xpla' ||
-    chainName === 'injective'
-  ) {
+  } else if (chainName === 'injective') {
+    return new InjectiveWatcher();
+  } else if (chainName === 'terra' || chainName === 'terra2' || chainName === 'xpla') {
     return new CosmwasmWatcher(chainName);
   } else {
     throw new Error(`Attempted to create finalized watcher for unsupported chain ${chainName}`);
