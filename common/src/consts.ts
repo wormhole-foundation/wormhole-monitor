@@ -23,5 +23,5 @@ export const INITIAL_DEPLOYMENT_BLOCK_BY_CHAIN: {
   aptos: '0', // block is 1094390 but AptosWatcher uses sequence number instead
   near: '72767136',
   xpla: '777549',
-  solana: '94396403', // https://solscan.io/tx/2L8rQY94W2d44sycRkhHA1PyXdh5z6ND541ftDDk1dgBcv6RLR9a3zUgTJispPmXjkmqdqd5EDytXcnP5PC2AmEJ
+  solana: '94396403', // https://explorer.solana.com/tx/2L8rQY94W2d44sycRkhHA1PyXdh5z6ND541ftDDk1dgBcv6RLR9a3zUgTJispPmXjkmqdqd5EDytXcnP5PC2AmEJ
 };
