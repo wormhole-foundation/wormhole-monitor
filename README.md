@@ -1,4 +1,6 @@
-# Wormhole Monitor
+> This repo has been merged with https://github.com/wormhole-foundation/wormhole-dashboard
+
+# Wormhole Monitor (Archive)
 
 The goal of this repo is to detect misses by the Wormhole network and provide a visualization of Wormhole messages and misses.
 
